@@ -2,14 +2,12 @@ package store
 
 import (
 	"db-test/types"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type widgets []widget
 
 type widget struct {
-	ID       int    `db:"id"`
+	ID       *int   `db:"id"`
 	Name     string `db:"name"`
 	Metadata string `db:"meta"`
 }
@@ -46,15 +44,24 @@ func fromWidget(w types.Widget) widget {
 	}
 }
 
+func (w widget) GetInsertQuery() Query {
+	if w.ID != nil {
+		return Query{
+			SQL:  "INSERT INTO widget (id, name, meta) VALUES ($1, $2, $3)",
+			Args: []any{w.ID, w.Name, w.Metadata},
+		}
+	}
+	return Query{
+		SQL:  "INSERT INTO widget (name, meta) VALUES ($1, $2)",
+		Args: []any{w.Name, w.Metadata},
+	}
+}
+
 // returns a set of insert queries meant to be used in a batch
 func (ws widgets) GetInsertQueries() []Query {
 	var queries []Query
 	for _, w := range ws {
-		// idea: use copy from? single insert query?
-		queries = append(queries, Query{
-			SQL:  "INSERT INTO widget (name, meta) VALUES ($1, $2)",
-			Args: []any{w.Name, w.Metadata},
-		})
+		queries = append(queries, w.GetInsertQuery())
 	}
 	return queries
 }

@@ -17,6 +17,8 @@ func NewTxStore(db *pgxpool.Pool) *TxStore {
 	return &TxStore{db}
 }
 
+// GetWidgetByID returns a single widget by its ID.
+// will return an error if the widget does not exist, or more than one widget is found.
 func (ts *TxStore) GetWidgetByID(ctx context.Context, id int) (types.Widget, error) {
 	var w widget
 	err := pgx.BeginTxFunc(ctx, ts.db, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
@@ -26,18 +28,12 @@ func (ts *TxStore) GetWidgetByID(ctx context.Context, id int) (types.Widget, err
 		}
 		defer rows.Close()
 		w, err = pgx.CollectExactlyOneRow[widget](rows, pgx.RowToStructByName)
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	})
-	if err != nil {
-		return types.Widget{}, err
-	}
-
-	return w.toWidget(), nil
+	return w.toWidget(), err
 }
 
+// GetAllWidgets returns all widgets in the database.
 func (ts *TxStore) GetAllWidgets(ctx context.Context) ([]types.Widget, error) {
 	var w widgets
 	err := pgx.BeginTxFunc(ctx, ts.db, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
@@ -47,17 +43,12 @@ func (ts *TxStore) GetAllWidgets(ctx context.Context) ([]types.Widget, error) {
 		}
 		defer rows.Close()
 		w, err = pgx.CollectRows[widget](rows, pgx.RowToStructByName)
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
-	return w.toWidgets(), nil
+	return w.toWidgets(), err
 }
 
+// ExecBatch executes a batch of queries in a transaction.
 func (ts *TxStore) ExecBatch(ctx context.Context, qs []Query) error {
 	batch := &pgx.Batch{}
 	for _, q := range qs {
@@ -70,7 +61,7 @@ func (ts *TxStore) ExecBatch(ctx context.Context, qs []Query) error {
 	return err
 }
 
-// InsterWidgetLater returns a queued query to batch with other queries. Meant to be used with `TxStore.ExecBatch`.
+// InsterWidgetLater returns a set of queries. Meant to be used in conjunction `TxStore.ExecBatch`.
 func (ts *TxStore) InsertWidgetsLater(ctx context.Context, widgets []types.Widget) []Query {
 	return fromWidgets(widgets).GetInsertQueries()
 }

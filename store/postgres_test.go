@@ -3,9 +3,10 @@ package store_test
 import (
 	"context"
 	"db-test/store"
+	"db-test/types"
+	"fmt"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
 )
@@ -43,29 +44,37 @@ func (s *TxStoreSuite) TearDownTest() {
 
 func (s *TxStoreSuite) TestExecBatch_Error() {
 	// Tests that if one statement has an error, none will be committed
-	batch := pgx.Batch{}
-	batch.Queue("INSERT INTO widget (name, meta) VALUES ($1, $2)", "foo", "bar")
-	batch.Queue("INSERT INTO widget (name, meta) VALUES ($1, $2)", "foo1", "baz")
-	batch.Queue("INSERT INTO widget (name1, meta) VALUES ($1, $2)", "foo2", "bax")
+	widgets := []types.Widget{}
+	numWidgets := 10
+	dupeID := 1
+	dupeIDwidget := types.Widget{ID: &dupeID, Name: "dupe", Metadata: "bar"}
+	for i := 0; i < numWidgets; i++ {
+		widgets = append(widgets, types.Widget{Name: fmt.Sprintf("foo%d", i), Metadata: "bar"})
+	}
+	widgets = append(widgets, dupeIDwidget)
 
-	err := s.db.ExecBatch(s.ctx, &batch)
+	queries := s.db.InsertWidgetsLater(s.ctx, widgets)
+
+	err := s.db.ExecBatch(s.ctx, queries)
 	s.Require().Error(err)
-	widgets, err := s.db.GetAllWidgets(s.ctx)
+	widgetsCheck, err := s.db.GetAllWidgets(s.ctx)
 	s.Require().NoError(err)
-	s.Require().Len(widgets, 0)
+	s.Require().Len(widgetsCheck, 0)
 }
 
 func (s *TxStoreSuite) TestExecBatch() {
-	batch := pgx.Batch{}
-	batch.Queue("INSERT INTO widget (name, meta) VALUES ($1, $2)", "foo", "bar")
-	batch.Queue("INSERT INTO widget (name, meta) VALUES ($1, $2)", "foo1", "baz")
-	batch.Queue("INSERT INTO widget (name, meta) VALUES ($1, $2)", "foo2", "bax")
+	widgets := []types.Widget{}
+	numWidgets := 10
+	for i := 0; i < numWidgets; i++ {
+		widgets = append(widgets, types.Widget{Name: fmt.Sprintf("foo%d", i), Metadata: "bar"})
+	}
 
-	err := s.db.ExecBatch(s.ctx, &batch)
+	queries := s.db.InsertWidgetsLater(s.ctx, widgets)
+	err := s.db.ExecBatch(s.ctx, queries)
 	s.Require().NoError(err)
-	widgets, err := s.db.GetAllWidgets(s.ctx)
+	widgetsCheck, err := s.db.GetAllWidgets(s.ctx)
 	s.Require().NoError(err)
-	s.Require().Len(widgets, 3)
+	s.Require().Len(widgetsCheck, numWidgets)
 }
 
 func TestTxStoreSuite(t *testing.T) {

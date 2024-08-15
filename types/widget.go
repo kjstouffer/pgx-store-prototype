@@ -1,7 +1,7 @@
 package types
 
 type Widget struct {
-	ID       int
+	ID       *int
 	Name     string
 	Metadata string
 }
